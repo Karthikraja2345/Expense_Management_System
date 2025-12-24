@@ -12,7 +12,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+const cors = require('cors');
+   app.use(cors({
+     origin: ['https://expense-management-app-o4z9.onrender.com', 'http://localhost:3000'],
+     credentials: true
+   }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
