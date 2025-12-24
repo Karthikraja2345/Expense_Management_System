@@ -1,0 +1,52 @@
+.header {
+  background-color: var(--bg-secondary);
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--primary-color);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-info {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.theme-toggle {
+  font-size: 1.5rem;
+  background: var(--bg-tertiary);
+  padding: 8px 16px;
+  border-radius: 6px;
+}
+
+.theme-toggle:hover {
+  background: var(--primary-color);
+  transform: scale(1.05);
+}
+
+.logout-btn {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.logout-btn:hover {
+  background-color: #c82333;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}

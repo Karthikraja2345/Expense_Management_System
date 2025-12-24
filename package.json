@@ -1,0 +1,14 @@
+{
+  "name": "expense-management-system",
+  "version": "1.0.0",
+  "description": "Production-ready Expense Management System",
+  "scripts": {
+    "dev": "npm run dev:client & npm run dev:server",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
