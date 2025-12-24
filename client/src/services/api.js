@@ -6,6 +6,8 @@ const API_URL = import.meta.env.VITE_API_URL ||
                   ? 'https://expense-management-api-7dcv.onrender.com/api' 
                   : 'http://localhost:5000/api');
 
+console.log('API URL:', API_URL, 'Production:', import.meta.env.PROD);
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
