@@ -160,7 +160,7 @@ router.get('/employee/:employeeId', async (req, res) => {
 // Get pending expenses (Approver)
 router.get('/pending', async (req, res) => {
   try {
-    const { locations } = req.query;
+    const { locations, approverId } = req.query;
     
     let query = db.collection('expenses').where('status', '==', 'Pending');
     
@@ -171,13 +171,36 @@ router.get('/pending', async (req, res) => {
     
     const expensesSnapshot = await query.orderBy('createdAt', 'desc').get();
 
-    const expenses = [];
+    let expenses = [];
     expensesSnapshot.forEach(doc => {
       expenses.push({
         id: doc.id,
         ...doc.data()
       });
     });
+
+    // Filter by approver assignments if approverId is provided
+    if (approverId) {
+      const assignmentsSnapshot = await db.collection('approverAssignments')
+        .where('approverId', '==', approverId)
+        .get();
+      
+      const assignedEmployeeIds = [];
+      assignmentsSnapshot.forEach(doc => {
+        assignedEmployeeIds.push(doc.data().employeeId);
+      });
+
+      // Only show expenses from assigned employees
+      // If no assignments, show empty array (no expenses)
+      if (assignedEmployeeIds.length > 0) {
+        expenses = expenses.filter(expense => 
+          assignedEmployeeIds.includes(expense.employeeId)
+        );
+      } else {
+        // No assignments = no expenses to show
+        expenses = [];
+      }
+    }
 
     res.json(expenses);
   } catch (error) {
@@ -240,7 +263,7 @@ router.get('/', async (req, res) => {
 router.put('/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
-    const { approverName, paymentRemark, hold } = req.body;
+    const { approverName, paymentRemark, hold, feedback } = req.body;
 
     const status = hold ? 'Approved-Hold' : 'Approved-Paid';
     const approvalDate = new Date().toISOString().split('T')[0];
@@ -250,6 +273,7 @@ router.put('/:id/approve', async (req, res) => {
       approverName,
       approvalDate,
       paymentRemark: paymentRemark || '',
+      feedback: feedback || '',
     });
 
     res.json({ message: 'Expense approved successfully' });

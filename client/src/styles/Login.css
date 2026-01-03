@@ -11,16 +11,26 @@
   position: absolute;
   top: 20px;
   right: 20px;
-  font-size: 1.5rem;
   background: rgba(255, 255, 255, 0.2);
-  padding: 12px 20px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 10px;
   backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
 }
 
 .theme-toggle-login:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: scale(1.1);
+  transform: rotate(180deg) scale(1.15);
+}
+
+.theme-toggle-login .theme-icon {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2;
+  color: white;
 }
 
 .login-container {

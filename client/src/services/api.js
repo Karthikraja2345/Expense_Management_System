@@ -47,8 +47,8 @@ export const submitExpense = (formData) =>
 export const getEmployeeExpenses = (employeeId) => 
   api.get(`/expenses/employee/${employeeId}`);
 
-export const getPendingExpenses = (locations) => 
-  api.get('/expenses/pending', { params: { locations } });
+export const getPendingExpenses = (locations, approverId) => 
+  api.get('/expenses/pending', { params: { locations, approverId } });
 
 export const getAllExpenses = (filters) => 
   api.get('/expenses', { params: filters });
@@ -69,5 +69,36 @@ export const exportCSV = (filters) => {
     responseType: 'blob'
   });
 };
+
+// Settings - Approver Assignments
+export const getApproverAssignments = () => 
+  api.get('/settings/approver-assignments');
+
+export const createApproverAssignments = (data) => 
+  api.post('/settings/approver-assignments', data);
+
+export const deleteApproverAssignment = (id) => 
+  api.delete(`/settings/approver-assignments/${id}`);
+
+export const getAssignedEmployees = (approverId) => 
+  api.get(`/settings/approver-assignments/approver/${approverId}`);
+
+// Get approver assigned to an employee
+export const getAssignedApprover = (employeeId) => 
+  api.get(`/settings/approver-assignments/employee/${employeeId}`);
+
+// Settings - Locations
+export const getLocations = () => 
+  api.get('/settings/locations');
+
+export const updateLocations = (locations) => 
+  api.put('/settings/locations', { locations });
+
+// Settings - Expense Items
+export const getExpenseItems = () => 
+  api.get('/settings/expense-items');
+
+export const updateExpenseItems = (expenseItems) => 
+  api.put('/settings/expense-items', { expenseItems });
 
 export default api;

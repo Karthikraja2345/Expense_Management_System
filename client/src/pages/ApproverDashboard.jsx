@@ -2,47 +2,94 @@ import React, { useState, useEffect, useContext } from 'react';
 import Header from '../components/Header';
 import Analytics from '../components/Analytics';
 import { AuthContext } from '../context/AuthContext';
-import { getPendingExpenses, approveExpense, declineExpense, getAnalytics, exportCSV } from '../services/api';
+import { getPendingExpenses, approveExpense, declineExpense, getAnalytics, exportCSV, getLocations, getAssignedEmployees } from '../services/api';
 import '../styles/ApproverDashboard.css';
-
-const LOCATIONS = ['Chennai', 'Salem', 'Madurai', 'Omalur', 'Coimbatore', 'Trichy'];
 
 const ApproverDashboard = () => {
   const { user } = useContext(AuthContext);
 
+  // Dynamic Settings
+  const [availableLocations, setAvailableLocations] = useState([]);
+
+  // Active Tab
+  const [activeTab, setActiveTab] = useState('approvals');
+
+  // Assigned Employees State
+  const [assignedEmployees, setAssignedEmployees] = useState([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+
   // Expense Review State
   const [expenses, setExpenses] = useState([]);
-  const [selectedLocations, setSelectedLocations] = useState(LOCATIONS);
+  const [selectedLocations, setSelectedLocations] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // Modal State
   const [modalExpense, setModalExpense] = useState(null);
   const [modalAction, setModalAction] = useState(null);
   const [paymentRemark, setPaymentRemark] = useState('');
+  const [feedback, setFeedback] = useState('');
   const [declineReason, setDeclineReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   // Analytics State
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [analyticsLocations, setAnalyticsLocations] = useState(LOCATIONS);
+  const [analyticsLocations, setAnalyticsLocations] = useState([]);
 
   // Image Modal
   const [imageModal, setImageModal] = useState(null);
 
   useEffect(() => {
-    loadExpenses();
-    loadAnalytics();
-  }, [selectedLocations]);
+    loadSettings();
+    loadAssignedEmployees();
+  }, []);
 
   useEffect(() => {
-    loadAnalytics();
-  }, [analyticsLocations]);
+    if (availableLocations.length > 0) {
+      loadExpenses();
+      loadAnalytics();
+    }
+  }, [selectedLocations, availableLocations]);
+
+  useEffect(() => {
+    if (availableLocations.length > 0) {
+      loadAnalytics();
+    }
+  }, [analyticsLocations, availableLocations]);
+
+  const loadSettings = async () => {
+    try {
+      const locationsRes = await getLocations();
+      setAvailableLocations(locationsRes.data.locations);
+      setSelectedLocations(locationsRes.data.locations);
+      setAnalyticsLocations(locationsRes.data.locations);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      // Fallback to default values
+      const defaultLocations = ['Chennai', 'Salem', 'Madurai', 'Omalur', 'Coimbatore', 'Trichy'];
+      setAvailableLocations(defaultLocations);
+      setSelectedLocations(defaultLocations);
+      setAnalyticsLocations(defaultLocations);
+    }
+  };
+
+  const loadAssignedEmployees = async () => {
+    setAssignmentsLoading(true);
+    try {
+      const response = await getAssignedEmployees(user.id);
+      setAssignedEmployees(response.data.employees || []);
+    } catch (error) {
+      console.error('Failed to load assigned employees:', error);
+      setAssignedEmployees([]);
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  };
 
   const loadExpenses = async () => {
     setLoading(true);
     try {
       const locations = selectedLocations.length > 0 ? selectedLocations.join(',') : 'all';
-      const response = await getPendingExpenses(locations);
+      const response = await getPendingExpenses(locations, user.id);
       setExpenses(response.data);
     } catch (error) {
       console.error('Failed to load expenses:', error);
@@ -73,6 +120,7 @@ const ApproverDashboard = () => {
     setModalExpense(expense);
     setModalAction(action);
     setPaymentRemark('');
+    setFeedback('');
     setDeclineReason('');
   };
 
@@ -80,6 +128,7 @@ const ApproverDashboard = () => {
     setModalExpense(null);
     setModalAction(null);
     setPaymentRemark('');
+    setFeedback('');
     setDeclineReason('');
   };
 
@@ -91,6 +140,7 @@ const ApproverDashboard = () => {
       await approveExpense(modalExpense.id, {
         approverName: user.name,
         paymentRemark,
+        feedback,
         hold
       });
 
@@ -149,18 +199,47 @@ const ApproverDashboard = () => {
       <Header title="Approver Dashboard" />
       
       <div className="dashboard-content">
-        <div className="approver-section">
-          <div className="section-header-row">
-            <h2>Pending Approvals</h2>
-            <button onClick={handleExportCSV} className="export-btn">
-              📥 Export CSV
-            </button>
-          </div>
+        {/* Tabs */}
+        <div className="tabs">
+          <button
+            className={`tab ${activeTab === 'approvals' ? 'active' : ''}`}
+            onClick={() => setActiveTab('approvals')}
+          >
+            Pending Approvals
+          </button>
+          <button
+            className={`tab ${activeTab === 'assignments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('assignments')}
+          >
+            My Assigned Employees
+          </button>
+          <button
+            className={`tab ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => setActiveTab('analytics')}
+          >
+            Analytics
+          </button>
+        </div>
 
-          <div className="location-filters">
+        {/* Pending Approvals Tab */}
+        {activeTab === 'approvals' && (
+          <div className="approver-section">
+            <div className="section-header-row">
+              <h2>Pending Approvals</h2>
+              <button onClick={handleExportCSV} className="export-btn">
+                <svg className="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export CSV
+              </button>
+            </div>
+
+            <div className="location-filters">
             <h3>Filter by Location:</h3>
             <div className="filter-buttons">
-              {LOCATIONS.map(location => (
+              {availableLocations.map(location => (
                 <button
                   key={location}
                   className={`filter-btn ${selectedLocations.includes(location) ? 'active' : ''}`}
@@ -254,14 +333,55 @@ const ApproverDashboard = () => {
             </div>
           )}
         </div>
+        )}
 
-        {analyticsData && (
+        {/* Assigned Employees Tab */}
+        {activeTab === 'assignments' && (
+          <div className="approver-section">
+            <h2>My Assigned Employees</h2>
+            {assignmentsLoading ? (
+              <div className="loading">Loading assignments...</div>
+            ) : assignedEmployees.length > 0 ? (
+              <div className="assignments-grid">
+                {assignedEmployees.map(employee => (
+                  <div key={employee.id} className="employee-card">
+                    <svg className="employee-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <h3>{employee.name}</h3>
+                    <p className="employee-location">
+                      <svg className="location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                      </svg>
+                      {employee.location}
+                    </p>
+                    <p className="employee-id">ID: {employee.id}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="no-data">
+                <p>No employees have been assigned to you yet.</p>
+                <p>Contact your administrator to assign employees to your approval queue.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && analyticsData && (
           <Analytics
             data={analyticsData}
             selectedLocations={analyticsLocations}
             onLocationChange={setAnalyticsLocations}
-            availableLocations={LOCATIONS}
+            availableLocations={availableLocations}
           />
+        )}
+
+        {activeTab === 'analytics' && !analyticsData && (
+          <div className="loading">Loading analytics...</div>
         )}
       </div>
 
@@ -282,27 +402,66 @@ const ApproverDashboard = () => {
             </div>
 
             {(modalAction === 'approve-pay' || modalAction === 'approve-hold') && (
-              <div className="form-group">
-                <label>Payment Remark:</label>
-                {modalAction === 'approve-pay' ? (
-                  <select
-                    value={paymentRemark}
-                    onChange={(e) => setPaymentRemark(e.target.value)}
-                  >
-                    <option value="">Select payment method</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="GPay">GPay</option>
-                    <option value="Cash">Cash</option>
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={paymentRemark}
-                    onChange={(e) => setPaymentRemark(e.target.value)}
-                    placeholder="Payment Pending"
+              <>
+                <div className="form-group">
+                  <label>Payment Method: *</label>
+                  {modalAction === 'approve-pay' ? (
+                    <div className="payment-buttons">
+                      <button
+                        type="button"
+                        className={`payment-btn ${paymentRemark === 'Bank Transfer' ? 'selected' : ''}`}
+                        onClick={() => setPaymentRemark('Bank Transfer')}
+                      >
+                        Bank Transfer
+                      </button>
+                      <button
+                        type="button"
+                        className={`payment-btn ${paymentRemark === 'GPay' ? 'selected' : ''}`}
+                        onClick={() => setPaymentRemark('GPay')}
+                      >
+                        GPay
+                      </button>
+                      <button
+                        type="button"
+                        className={`payment-btn ${paymentRemark === 'Paytm' ? 'selected' : ''}`}
+                        onClick={() => setPaymentRemark('Paytm')}
+                      >
+                        Paytm
+                      </button>
+                      <button
+                        type="button"
+                        className={`payment-btn ${paymentRemark === 'PhonePe' ? 'selected' : ''}`}
+                        onClick={() => setPaymentRemark('PhonePe')}
+                      >
+                        PhonePe
+                      </button>
+                      <button
+                        type="button"
+                        className={`payment-btn ${paymentRemark === 'Cash' ? 'selected' : ''}`}
+                        onClick={() => setPaymentRemark('Cash')}
+                      >
+                        Cash
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={paymentRemark}
+                      onChange={(e) => setPaymentRemark(e.target.value)}
+                      placeholder="Payment Pending"
+                    />
+                  )}
+                </div>
+                <div className="form-group">
+                  <label>Feedback/Comments:</label>
+                  <textarea
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="Add any feedback or comments (optional)"
+                    rows="3"
                   />
-                )}
-              </div>
+                </div>
+              </>
             )}
 
             {modalAction === 'decline' && (

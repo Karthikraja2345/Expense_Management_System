@@ -2,20 +2,23 @@ import React, { useState, useEffect, useContext } from 'react';
 import Header from '../components/Header';
 import Analytics from '../components/Analytics';
 import { AuthContext } from '../context/AuthContext';
-import { submitExpense, getEmployeeExpenses, getAnalytics } from '../services/api';
+import { submitExpense, getEmployeeExpenses, getAnalytics, getLocations, getExpenseItems, getAssignedApprover } from '../services/api';
 import '../styles/EmployeeDashboard.css';
 
-const LOCATIONS = ['Chennai', 'Salem', 'Madurai', 'Omalur', 'Coimbatore', 'Trichy'];
-const EXPENSE_TYPES = ['Food', 'Cable', 'Travel', 'Rent', 'Utilities', 'Office Supplies', 'Other'];
 const RECURRING_TYPES = ['Monthly', 'Weekly', 'One-time'];
 
 const EmployeeDashboard = () => {
   const { user } = useContext(AuthContext);
   
+  // Dynamic Settings
+  const [locations, setLocations] = useState([]);
+  const [expenseTypes, setExpenseTypes] = useState([]);
+  const [assignedApprover, setAssignedApprover] = useState(null);
+  
   // Expense Filing State
   const [dateOfSpend, setDateOfSpend] = useState('');
   const [selectedLocations, setSelectedLocations] = useState([]);
-  const [expenseItems, setExpenseItems] = useState([{ expenseType: 'Food', amount: '', recurringType: 'One-time' }]);
+  const [expenseItems, setExpenseItems] = useState([{ expenseType: '', amount: '', recurringType: 'One-time' }]);
   const [convenienceExpenses, setConvenienceExpenses] = useState([]);
   const [billImages, setBillImages] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -29,16 +32,52 @@ const EmployeeDashboard = () => {
 
   // Analytics State
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [analyticsLocations, setAnalyticsLocations] = useState(LOCATIONS);
+  const [analyticsLocations, setAnalyticsLocations] = useState([]);
 
   useEffect(() => {
+    loadSettings();
     loadExpenses();
     loadAnalytics();
+    loadAssignedApprover();
   }, []);
 
   useEffect(() => {
     loadAnalytics();
   }, [analyticsLocations]);
+
+  const loadSettings = async () => {
+    try {
+      const [locationsRes, expenseItemsRes] = await Promise.all([
+        getLocations(),
+        getExpenseItems()
+      ]);
+      setLocations(locationsRes.data.locations);
+      setExpenseTypes(expenseItemsRes.data.expenseItems);
+      setAnalyticsLocations(locationsRes.data.locations);
+      // Set first expense type if available
+      if (expenseItemsRes.data.expenseItems.length > 0) {
+        setExpenseItems([{ 
+          expenseType: expenseItemsRes.data.expenseItems[0], 
+          amount: '', 
+          recurringType: 'One-time' 
+        }]);
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+      // Fallback to default values
+      setLocations(['Chennai', 'Salem', 'Madurai', 'Omalur', 'Coimbatore', 'Trichy']);
+      setExpenseTypes(['Food', 'Cable', 'Travel', 'Rent', 'Utilities', 'Office Supplies', 'Other']);
+    }
+  };
+
+  const loadAssignedApprover = async () => {
+    try {
+      const response = await getAssignedApprover(user.id);
+      setAssignedApprover(response.data.approver);
+    } catch (error) {
+      console.error('Failed to load assigned approver:', error);
+    }
+  };
 
   const loadExpenses = async () => {
     try {
@@ -68,7 +107,11 @@ const EmployeeDashboard = () => {
   };
 
   const addExpenseItem = () => {
-    setExpenseItems([...expenseItems, { expenseType: 'Food', amount: '', recurringType: 'One-time' }]);
+    setExpenseItems([...expenseItems, { 
+      expenseType: expenseTypes[0] || '', 
+      amount: '', 
+      recurringType: 'One-time' 
+    }]);
   };
 
   const removeExpenseItem = (index) => {
@@ -138,7 +181,11 @@ const EmployeeDashboard = () => {
       // Reset form
       setDateOfSpend('');
       setSelectedLocations([]);
-      setExpenseItems([{ expenseType: 'Food', amount: '', recurringType: 'One-time' }]);
+      setExpenseItems([{ 
+        expenseType: expenseTypes[0] || '', 
+        amount: '', 
+        recurringType: 'One-time' 
+      }]);
       setConvenienceExpenses([]);
       setBillImages([]);
       
@@ -200,6 +247,39 @@ const EmployeeDashboard = () => {
       <Header title="Employee Dashboard" />
       
       <div className="dashboard-content">
+        {/* Assigned Approver Info */}
+        {assignedApprover && (
+          <div className="approver-info-banner">
+            <svg className="info-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <div className="info-content">
+              <strong>Your Assigned Approver:</strong> {assignedApprover.name}
+              <span className="approver-location">
+                <svg className="location-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+                {assignedApprover.location}
+              </span>
+            </div>
+          </div>
+        )}
+        {!assignedApprover && (
+          <div className="approver-info-banner warning">
+            <svg className="info-icon-svg warning" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div className="info-content">
+              <strong>No Approver Assigned:</strong> Please contact your administrator to assign an approver for your expenses.
+            </div>
+          </div>
+        )}
+
         <div className="expense-filing-section">
           <h2>File New Expense</h2>
           
@@ -228,7 +308,7 @@ const EmployeeDashboard = () => {
             <div className="form-group">
               <label>Location (Multi-select) *</label>
               <div className="location-select">
-                {LOCATIONS.map(location => (
+                {locations.map(location => (
                   <button
                     key={location}
                     type="button"
@@ -256,7 +336,8 @@ const EmployeeDashboard = () => {
                     onChange={(e) => updateExpenseItem(index, 'expenseType', e.target.value)}
                     required
                   >
-                    {EXPENSE_TYPES.map(type => (
+                    <option value="">Select Type</option>
+                    {expenseTypes.map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>
@@ -418,7 +499,7 @@ const EmployeeDashboard = () => {
             data={analyticsData}
             selectedLocations={analyticsLocations}
             onLocationChange={setAnalyticsLocations}
-            availableLocations={LOCATIONS}
+            availableLocations={locations}
           />
         )}
       </div>

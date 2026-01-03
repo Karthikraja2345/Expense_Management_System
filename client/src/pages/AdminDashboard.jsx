@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import Analytics from '../components/Analytics';
-import { getAllUsers, createUser, updateUser, deleteUser, getAllExpenses, getAnalytics, exportCSV } from '../services/api';
+import { 
+  getAllUsers, 
+  createUser, 
+  updateUser, 
+  deleteUser, 
+  getAllExpenses, 
+  getAnalytics, 
+  exportCSV,
+  getUsersByRole,
+  getApproverAssignments,
+  createApproverAssignments,
+  deleteApproverAssignment,
+  getLocations,
+  updateLocations,
+  getExpenseItems,
+  updateExpenseItems
+} from '../services/api';
 import '../styles/AdminDashboard.css';
 
-const LOCATIONS = ['Chennai', 'Salem', 'Madurai', 'Omalur', 'Coimbatore', 'Trichy'];
 const ROLES = ['Employee', 'Approver', 'Admin'];
 
 const AdminDashboard = () => {
+  // Dynamic Settings
+  const [locations, setLocations] = useState([]);
+  const [expenseTypes, setExpenseTypes] = useState([]);
+  
   // User Management State
   const [users, setUsers] = useState([]);
   const [showUserForm, setShowUserForm] = useState(false);
@@ -34,12 +53,23 @@ const AdminDashboard = () => {
 
   // Analytics State
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [analyticsLocations, setAnalyticsLocations] = useState(LOCATIONS);
+  const [analyticsLocations, setAnalyticsLocations] = useState([]);
+
+  // Settings State
+  const [approvers, setApprovers] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [selectedApprover, setSelectedApprover] = useState('');
+  const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [newLocation, setNewLocation] = useState('');
+  const [newExpenseItem, setNewExpenseItem] = useState('');
+  const [settingsMessage, setSettingsMessage] = useState('');
 
   // Active Tab
   const [activeTab, setActiveTab] = useState('users');
 
   useEffect(() => {
+    loadSettings();
     loadUsers();
     loadExpenses();
     loadAnalytics();
@@ -52,6 +82,20 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadAnalytics();
   }, [analyticsLocations]);
+
+  const loadSettings = async () => {
+    try {
+      const [locationsRes, expenseItemsRes] = await Promise.all([
+        getLocations(),
+        getExpenseItems()
+      ]);
+      setLocations(locationsRes.data.locations);
+      setExpenseTypes(expenseItemsRes.data.expenseItems);
+      setAnalyticsLocations(locationsRes.data.locations);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -138,6 +182,110 @@ const AdminDashboard = () => {
     }
   };
 
+  // Settings Functions
+  const loadApproversAndEmployees = async () => {
+    try {
+      const [approversRes, employeesRes, assignmentsRes] = await Promise.all([
+        getUsersByRole('Approver'),
+        getUsersByRole('Employee'),
+        getApproverAssignments()
+      ]);
+      setApprovers(approversRes.data);
+      setEmployees(employeesRes.data);
+      setAssignments(assignmentsRes.data);
+    } catch (error) {
+      console.error('Failed to load approvers/employees:', error);
+    }
+  };
+
+  const handleAssignEmployees = async (e) => {
+    e.preventDefault();
+    if (!selectedApprover || selectedEmployees.length === 0) {
+      setSettingsMessage('Please select an approver and at least one employee');
+      return;
+    }
+
+    try {
+      const approver = approvers.find(a => a.id === selectedApprover);
+      await createApproverAssignments({
+        approverId: selectedApprover,
+        approverName: approver.name,
+        employeeIds: selectedEmployees
+      });
+      setSettingsMessage('Employees assigned successfully');
+      setSelectedApprover('');
+      setSelectedEmployees([]);
+      loadApproversAndEmployees();
+    } catch (error) {
+      setSettingsMessage('Failed to assign employees');
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    try {
+      await deleteApproverAssignment(assignmentId);
+      loadApproversAndEmployees();
+    } catch (error) {
+      alert('Failed to delete assignment');
+    }
+  };
+
+  const handleAddLocation = async (e) => {
+    e.preventDefault();
+    if (!newLocation.trim()) return;
+
+    try {
+      const updatedLocations = [...locations, newLocation.trim()];
+      await updateLocations(updatedLocations);
+      setLocations(updatedLocations);
+      setNewLocation('');
+      setSettingsMessage('Location added successfully');
+    } catch (error) {
+      setSettingsMessage('Failed to add location');
+    }
+  };
+
+  const handleDeleteLocation = async (location) => {
+    if (!confirm(`Delete location: ${location}?`)) return;
+
+    try {
+      const updatedLocations = locations.filter(l => l !== location);
+      await updateLocations(updatedLocations);
+      setLocations(updatedLocations);
+      setSettingsMessage('Location deleted successfully');
+    } catch (error) {
+      setSettingsMessage('Failed to delete location');
+    }
+  };
+
+  const handleAddExpenseItem = async (e) => {
+    e.preventDefault();
+    if (!newExpenseItem.trim()) return;
+
+    try {
+      const updatedItems = [...expenseTypes, newExpenseItem.trim()];
+      await updateExpenseItems(updatedItems);
+      setExpenseTypes(updatedItems);
+      setNewExpenseItem('');
+      setSettingsMessage('Expense item added successfully');
+    } catch (error) {
+      setSettingsMessage('Failed to add expense item');
+    }
+  };
+
+  const handleDeleteExpenseItem = async (item) => {
+    if (!confirm(`Delete expense item: ${item}?`)) return;
+
+    try {
+      const updatedItems = expenseTypes.filter(i => i !== item);
+      await updateExpenseItems(updatedItems);
+      setExpenseTypes(updatedItems);
+      setSettingsMessage('Expense item deleted successfully');
+    } catch (error) {
+      setSettingsMessage('Failed to delete expense item');
+    }
+  };
+
   const handleFilterChange = (field, value) => {
     setExpenseFilters({ ...expenseFilters, [field]: value });
   };
@@ -191,6 +339,15 @@ const AdminDashboard = () => {
             onClick={() => setActiveTab('analytics')}
           >
             Analytics
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('settings');
+              loadApproversAndEmployees();
+            }}
+          >
+            Settings
           </button>
         </div>
 
@@ -271,7 +428,7 @@ const AdminDashboard = () => {
                       onChange={(e) => handleUserFormChange('location', e.target.value)}
                       required
                     >
-                      {LOCATIONS.map(loc => (
+                      {locations.map(loc => (
                         <option key={loc} value={loc}>{loc}</option>
                       ))}
                     </select>
@@ -357,7 +514,12 @@ const AdminDashboard = () => {
             <div className="section-header-row">
               <h2>All Expenses</h2>
               <button onClick={handleExportCSV} className="export-btn">
-                📥 Export CSV
+                <svg className="export-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export CSV
               </button>
             </div>
 
@@ -430,8 +592,179 @@ const AdminDashboard = () => {
             data={analyticsData}
             selectedLocations={analyticsLocations}
             onLocationChange={setAnalyticsLocations}
-            availableLocations={LOCATIONS}
+            availableLocations={locations}
           />
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="settings-section">
+            <h2>System Settings</h2>
+
+            {settingsMessage && (
+              <div className={`message ${settingsMessage.includes('success') ? 'success' : 'error'}`}>
+                {settingsMessage}
+              </div>
+            )}
+
+            {/* Approver Assignments */}
+            <div className="settings-card">
+              <h3>Approver Assignments</h3>
+              <p className="settings-description">
+                Assign specific employees to approvers. Only assigned employees' expenses will appear in the approver's dashboard.
+              </p>
+
+              <form onSubmit={handleAssignEmployees} className="assignment-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Select Approver *</label>
+                    <select
+                      value={selectedApprover}
+                      onChange={(e) => setSelectedApprover(e.target.value)}
+                      required
+                    >
+                      <option value="">Choose an approver</option>
+                      {approvers.map(approver => (
+                        <option key={approver.id} value={approver.id}>
+                          {approver.name} ({approver.location})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Select Employees *</label>
+                    <div className="multi-select-box">
+                      {employees.map(employee => (
+                        <label key={employee.id} className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedEmployees.includes(employee.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEmployees([...selectedEmployees, employee.id]);
+                              } else {
+                                setSelectedEmployees(selectedEmployees.filter(id => id !== employee.id));
+                              }
+                            }}
+                          />
+                          <span>{employee.name} ({employee.location})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" className="submit-btn">
+                  Assign Employees
+                </button>
+              </form>
+
+              <div className="assignments-list">
+                <h4>Current Assignments</h4>
+                {assignments.length === 0 ? (
+                  <p className="no-data">No assignments yet</p>
+                ) : (
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Approver</th>
+                        <th>Employee</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignments.map(assignment => (
+                        <tr key={assignment.id}>
+                          <td>{assignment.approverName}</td>
+                          <td>{employees.find(e => e.id === assignment.employeeId)?.name || 'Unknown'}</td>
+                          <td>
+                            <button
+                              onClick={() => handleDeleteAssignment(assignment.id)}
+                              className="delete-btn-small"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Locations Management */}
+            <div className="settings-card">
+              <h3>Manage Locations</h3>
+              <p className="settings-description">
+                Add or remove locations used throughout the system.
+              </p>
+
+              <form onSubmit={handleAddLocation} className="inline-form">
+                <input
+                  type="text"
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                  placeholder="Enter new location"
+                  className="inline-input"
+                />
+                <button type="submit" className="submit-btn">
+                  Add Location
+                </button>
+              </form>
+
+              <div className="tags-list">
+                {locations.map(location => (
+                  <div key={location} className="tag">
+                    <span>{location}</span>
+                    <button
+                      onClick={() => handleDeleteLocation(location)}
+                      className="tag-close"
+                      title="Delete location"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Expense Items Management */}
+            <div className="settings-card">
+              <h3>Manage Expense Items</h3>
+              <p className="settings-description">
+                Add or remove expense types available for employees to select.
+              </p>
+
+              <form onSubmit={handleAddExpenseItem} className="inline-form">
+                <input
+                  type="text"
+                  value={newExpenseItem}
+                  onChange={(e) => setNewExpenseItem(e.target.value)}
+                  placeholder="Enter new expense item"
+                  className="inline-input"
+                />
+                <button type="submit" className="submit-btn">
+                  Add Expense Item
+                </button>
+              </form>
+
+              <div className="tags-list">
+                {expenseTypes.map(item => (
+                  <div key={item} className="tag">
+                    <span>{item}</span>
+                    <button
+                      onClick={() => handleDeleteExpenseItem(item)}
+                      className="tag-close"
+                      title="Delete expense item"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
