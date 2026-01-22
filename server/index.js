@@ -14,7 +14,30 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware - CORS configuration
 app.use(cors({
-  origin: ['https://expense-management-system.vercel.app', 'http://localhost:3000', 'http://localhost:5173'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost and Vercel domains
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      /https:\/\/.*\.vercel\.app$/  // Allow all Vercel preview URLs
+    ];
+    
+    const isAllowed = allowedOrigins.some(pattern => {
+      if (pattern instanceof RegExp) {
+        return pattern.test(origin);
+      }
+      return pattern === origin;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
